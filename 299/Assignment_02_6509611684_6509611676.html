@@ -1,0 +1,820 @@
+<!--
+CS299 - Assignment 2
+
+Group: 66f5ff
+
+First Name: Natcha 
+Last Name: Sukhmuang
+Student ID: 6509611684
+E-mail: natcha.suk@dome.tu.ac.th
+
+First Name: Natcha
+Last Name: Wattanabumpen
+Student ID: 6509611676
+E-mail: natcha.wattan@dome.tu.ac.th
+
+
+-->
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>CS299 - Assignment 2</title>
+  <link type="text/css" href="https://webgl2fundamentals.org/webgl/resources/webgl-tutorials.css" rel="stylesheet" />
+  <!-- CSS override -->
+  <style type="text/css">
+  body { background-color: #ccc; }
+  #group {background-color: #66f5ff; -webkit-text-stroke: 1px #808080; font-size: 36px;}
+  canvas { background-color: #fff; width: 540px; height: 360px; border: 0px; }
+  #ui { width: 280px;}
+</style>
+</head>
+<body>
+  <div class="description">
+  </div>
+  <canvas id="canvas"></canvas>
+  <div id="uiContainer">
+    <div id="ui">
+      <div> transform order <span id="transform_order"></span></div>
+      <div> rotation order <span id="rotation_order"></span></div>
+      <div id="letter_Tx"></div>
+      <div id="letter_Ty"></div>
+      <div id="letter_Tz"></div>
+      <div id="letter_Rx"></div>
+      <div id="letter_Ry"></div>
+      <div id="letter_Rz"></div>
+      <div id="cam_X"></div>
+      <div id="cam_Y"></div>
+    </div>
+  </div>
+</body>
+<!-- util libraries -->
+<script src="https://webgl2fundamentals.org/webgl/resources/webgl-utils.js"></script>
+<script src="https://webgl2fundamentals.org/webgl/resources/webgl-lessons-ui.js"></script>
+<script src="https://webgl2fundamentals.org/webgl/resources/m3.js"></script>
+<script src="https://webgl2fundamentals.org/webgl/resources/m4.js"></script>
+
+<!-- main code -->
+<script>
+  "use strict";
+
+  var letterVectorShaderSource = `#version 300 es
+
+  // an attribute is an input (in) to a vertex shader.
+  // It will receive data from a buffer
+  in vec4 a_position;
+  in vec4 a_color;
+
+  // A matrix to transform the positions by
+  uniform mat4 u_matrix;
+
+  // a varying the color to the fragment shader
+  out vec4 v_color;
+
+  // all shaders have a main function
+  void main() {
+    // Multiply the position by the matrix.
+    gl_Position = u_matrix * a_position;
+
+    // Pass the color to the fragment shader.
+    v_color = a_color;
+  }
+  `;
+
+  var letterFragmentShaderSource = `#version 300 es
+
+  precision highp float;
+
+  // the varied color passed from the vertex shader
+  in vec4 v_color;
+
+  // we need to declare an output for the fragment shader
+  out vec4 outColor;
+
+  void main() {
+    outColor = v_color;
+  }
+  `;
+
+  var axisVertexShaderSource = `#version 300 es
+
+  in vec4 a_position;
+  in vec4 a_color;
+  
+  uniform mat4 u_matrix;
+
+  out vec4 v_color;
+
+  // all shaders have a main function
+  void main() {
+    gl_Position = u_matrix * a_position;
+    v_color = a_color;
+
+  }
+  `;
+
+  var axisFragmentShaderSource = `#version 300 es
+
+  precision highp float;
+  in vec4 v_color;
+
+  out vec4 outColor;
+
+  void main() {
+    outColor = v_color;
+  }
+  `;
+
+
+  function main() {
+  // Get A WebGL context
+  /** @type {HTMLCanvasElement} */
+  var canvas = document.querySelector("#canvas");
+  var gl = canvas.getContext("webgl2");
+  if (!gl) {
+    return;
+  }
+
+  // Use our boilerplate utils to compile the shaders and link into a program
+  var letterShadingProgram = webglUtils.createProgramFromSources(gl,
+    [letterVectorShaderSource, letterFragmentShaderSource]);
+
+  var axisShadingProgram = webglUtils.createProgramFromSources(gl,
+    [letterVectorShaderSource, letterFragmentShaderSource]);
+
+
+  // look up where the vertex data needs to go.
+  var letterPositionAttribLocation = gl.getAttribLocation(letterShadingProgram, "a_position");
+  var letterColorAttribLocation = gl.getAttribLocation(letterShadingProgram, "a_color");
+  var axisPositionAttributeLocation = gl.getAttribLocation(axisShadingProgram, "a_position");
+  var axisColorAttributeLocation = gl.getAttribLocation(axisShadingProgram, "a_color");
+
+
+  // look up uniform locations
+  var letterMatrixLocation = gl.getUniformLocation(letterShadingProgram, "u_matrix");
+  var axisMatrixLocation = gl.getUniformLocation(axisShadingProgram, "u_matrix");
+
+
+  // Create buffers
+  var letterPositionBuffer = gl.createBuffer();
+  var letterColorBuffer = gl.createBuffer();
+  var axisPositionBuffer = gl.createBuffer();
+  var axisColorBuffer = gl.createBuffer();
+
+  // Create vertex array objects (attribute state)
+  var letterVAO = gl.createVertexArray();
+  var axisVAO = gl.createVertexArray();
+
+  // We work on the letterVAO first
+  gl.useProgram(letterShadingProgram);
+  gl.bindVertexArray(letterVAO);
+
+  // Turn on the attribute
+  gl.enableVertexAttribArray(letterPositionAttribLocation);
+
+  // Bind it to ARRAY_BUFFER (think of it as ARRAY_BUFFER = letterPositionBuffer)
+  gl.bindBuffer(gl.ARRAY_BUFFER, letterPositionBuffer);
+  // Set Geometry.
+  setModelGeometry(gl);
+
+  // Tell the attribute how to get data out of letterPositionBuffer (ARRAY_BUFFER)
+  var size = 3;          // 3 components per iteration
+  var type = gl.FLOAT;   // the data is 32bit floats
+  var normalize = false; // don't normalize the data
+  var stride = 0;        // 0 = move forward size * sizeof(type) each iteration to get the next position
+  var offset = 0;        // start at the beginning of the buffer
+  gl.vertexAttribPointer(
+    letterPositionAttribLocation, size, type, normalize, stride, offset);
+
+  // create the color buffer, make it the current ARRAY_BUFFER
+  // and copy in the color values
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, letterColorBuffer);
+  setModelColors(gl);
+
+  // Turn on the attribute
+  gl.enableVertexAttribArray(letterColorAttribLocation);
+
+  // Tell the attribute how to get data out of letterColorBuffer (ARRAY_BUFFER)
+  var size = 3;          // 3 components per iteration
+  var type = gl.UNSIGNED_BYTE;   // the data is 8bit unsigned bytes
+  var normalize = true;  // convert from 0-255 to 0.0-1.0
+  var stride = 0;        // 0 = move forward size * sizeof(type) each iteration to get the next color
+  var offset = 0;        // start at the beginning of the buffer
+  gl.vertexAttribPointer(
+    letterColorAttribLocation, size, type, normalize, stride, offset);
+
+
+//////////////////////////////////
+
+// let's switch to the axisVAO.
+gl.useProgram(axisShadingProgram);
+gl.bindVertexArray(axisVAO);
+
+
+  // Turn on the attribute
+  gl.enableVertexAttribArray(axisPositionAttributeLocation);
+
+  // Bind it to ARRAY_BUFFER (think of it as ARRAY_BUFFER = axisPositionBuffer)
+  gl.bindBuffer(gl.ARRAY_BUFFER, axisPositionBuffer);
+  // Set Geometry.
+  setAxisGeometry(gl);
+
+  // Tell the attribute how to get data out of axisPositionBuffer (ARRAY_BUFFER)
+  var size = 3;          // 3 components per iteration
+  var type = gl.FLOAT;   // the data is 32bit floats
+  var normalize = false; // don't normalize the data
+  var stride = 0;        // 0 = move forward size * sizeof(type) each iteration to get the next position
+  var offset = 0;        // start at the beginning of the buffer
+  gl.vertexAttribPointer(
+    axisPositionAttributeLocation, size, type, normalize, stride, offset);
+
+  // create the color buffer, make it the current ARRAY_BUFFER
+  // and copy in the color values
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, axisColorBuffer);
+  
+  setAxisColors(gl);
+
+  // Turn on the attribute
+  gl.enableVertexAttribArray(axisColorAttributeLocation);
+
+  // Tell the attribute how to get data out of axisColorBuffer (ARRAY_BUFFER)
+  var size = 3;          // 3 components per iteration
+  var type = gl.UNSIGNED_BYTE;   // the data is 8bit unsigned bytes
+  var normalize = true;  // convert from 0-255 to 0.0-1.0
+  var stride = 0;        // 0 = move forward size * sizeof(type) each iteration to get the next color
+  var offset = 0;        // start at the beginning of the buffer
+  gl.vertexAttribPointer(
+    axisColorAttributeLocation, size, type, normalize, stride, offset);
+
+
+  // angle conversion helper functions
+  function radToDeg(r) {
+    return r * 180 / Math.PI;
+  }
+
+  function degToRad(d) {
+    return d * Math.PI / 180;
+  }
+
+  // Let's make some variables to hold intial settings
+  var transformOrders = ['SRT','TRS'];
+  var initialTransformOrder = 'SRT';
+  var currentTransformOrder = 'SRT';
+  var rotationOrders = ['ZYX','XYZ'];
+  var initialRotationOrder = 'ZYX';
+  var currentRotationOrder = 'ZYX';
+
+  var letterPosition = [0, 100, 0];
+  var letterRotation = [degToRad(180), degToRad(45), degToRad(0)];
+  var letterScale = [1, 1, 1];
+  var cameraPosition = [0, 0, 500];
+  var cameraRotation = [0, degToRad(45), 0];
+  var cameraTarget = [0, 0, 0];
+  var cameraUp = [0,1,0];
+  var fieldOfViewRadians = degToRad(60);
+
+  drawScene();
+
+
+  // Setup UI to pick a transformation order.
+  var ui = document.querySelector("#transform_order");
+
+  var select = document.createElement("select");
+  for (var order in transformOrders) {
+    name = transformOrders[order]
+    var option = document.createElement("option");
+    option.value = name;
+    if (name === initialTransformOrder) {
+      option.selected = true;
+    }
+    option.appendChild(document.createTextNode(name));
+    select.appendChild(option);
+  }
+  select.onchange = function() {
+    currentTransformOrder = this.options[this.selectedIndex].value;
+    console.log(currentTransformOrder);
+    drawScene();
+  };
+  ui.appendChild(select);
+
+  // Setup UI to pick a rotation order.
+  var ui = document.querySelector("#rotation_order");
+
+  var select = document.createElement("select");
+  for (var order in rotationOrders) {
+    name = rotationOrders[order]
+    var option = document.createElement("option");
+    option.value = name;
+    if (name === initialRotationOrder) {
+      option.selected = true;
+    }
+    option.appendChild(document.createTextNode(name));
+    select.appendChild(option);
+  }
+  select.onchange = function() {
+    currentRotationOrder = this.options[this.selectedIndex].value;
+    console.log(currentRotationOrder);
+    drawScene();
+  };
+  ui.appendChild(select);
+
+
+  // Setup the rest of the UI.
+  webglLessonsUI.setupSlider("#letter_Tx",  {value: letterPosition[0],  slide: updateLetterPosition(0),  min: -400, max: 400 });
+  webglLessonsUI.setupSlider("#letter_Ty",  {value: letterPosition[1],  slide: updateLetterPosition(1),  min: -400, max: 400 });
+  webglLessonsUI.setupSlider("#letter_Tz",  {value: letterPosition[2],  slide: updateLetterPosition(2),  min: -400, max: 400 });
+  webglLessonsUI.setupSlider("#letter_Rx", {value: radToDeg(letterRotation[0]), slide: updateLetterRotation(0), max: 360});
+  webglLessonsUI.setupSlider("#letter_Ry", {value: radToDeg(letterRotation[1]), slide: updateLetterRotation(1), max: 360});
+  webglLessonsUI.setupSlider("#letter_Rz", {value: radToDeg(letterRotation[2]), slide: updateLetterRotation(2), max: 360});
+  webglLessonsUI.setupSlider("#cam_X",    {value: radToDeg(cameraRotation[0]), slide: updateCamera(0), min: -360, max: 360 });
+  webglLessonsUI.setupSlider("#cam_Y",    {value: radToDeg(cameraRotation[1]), slide: updateCamera(1), min: -89, max: 89 });
+  
+
+
+  function updateFieldOfView(event, ui) {
+    fieldOfViewRadians = degToRad(ui.value);
+    drawScene();
+  }
+
+  function updateLetterPosition(index) {
+    return function(event, ui) {
+      letterPosition[index] = ui.value;
+      drawScene();
+    };
+  }
+
+  function updateLetterRotation(index) {
+    return function(event, ui) {
+      var angleInDegrees = ui.value;
+      var angleInRadians = degToRad(angleInDegrees);
+      letterRotation[index] = angleInRadians;
+      drawScene();
+    };
+  }
+  
+  function updateLetterScale(index) {
+    return function(event, ui) {
+      letterScale[index] = ui.value;
+      drawScene();
+    };
+  }
+
+  function updateCamera(index) {
+    return function(event, ui) { 
+      if (index == 0) {
+        cameraPosition[index] = 500*Math.sin(degToRad(ui.value));
+        cameraPosition[2] = 500*Math.cos(degToRad(ui.value));
+      }
+      else if (index == 1) {
+        cameraPosition[index] = 500*Math.sin(degToRad(ui.value));
+      }
+      // cameraPosition[index] = ui.value;
+      // cameraTarget[index] = 0;
+      drawScene();
+    };
+  }
+
+
+
+  // Draw the scene.
+  function drawScene() {
+    webglUtils.resizeCanvasToDisplaySize(gl.canvas);
+
+    // Tell WebGL how to convert from clip space to pixels
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+    // Clear the canvas
+    gl.clearColor(0.9, 0.9, 0.9, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    // turn on depth testing
+    gl.enable(gl.DEPTH_TEST);
+
+    // tell webgl to cull faces
+    gl.enable(gl.CULL_FACE);
+
+    // Compute the matrix
+    var aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
+    var near = 100; // distance from the camera
+    var far =  1000; // absolute values, |n| and |f|
+    
+    // projection matrix
+    // var matrix = m4.orthographic(left, right, bottom, top, near, far);
+    var projectionMatrix = m4.perspective(fieldOfViewRadians, aspect, near, far);
+    
+    // camera matrix
+    var cameraMatrix = m4.lookAt(cameraPosition, cameraTarget, cameraUp);
+    
+    // view matrix
+    var viewMatrix = m4.inverse(cameraMatrix);
+
+    // model matrix
+    var modelMatrix = m4.identity();
+    var modelRotationMatrix = m4.identity();
+    
+    // check the rotation order first
+    if(currentRotationOrder === 'ZYX') {
+      modelRotationMatrix = m4.xRotate(modelRotationMatrix, letterRotation[0]);
+      modelRotationMatrix = m4.yRotate(modelRotationMatrix, letterRotation[1]);
+      modelRotationMatrix = m4.zRotate(modelRotationMatrix, letterRotation[2]);
+    } 
+
+    else if (currentRotationOrder === 'XYZ') {
+      modelRotationMatrix = m4.xRotate(modelRotationMatrix, letterRotation[2]);
+      modelRotationMatrix = m4.yRotate(modelRotationMatrix, letterRotation[1]);
+      modelRotationMatrix = m4.zRotate(modelRotationMatrix, letterRotation[0]);
+    } 
+
+    // check the transform order
+    if(currentTransformOrder === 'SRT') {
+      modelMatrix = m4.translate(modelMatrix, letterPosition[0], letterPosition[1], letterPosition[2]);
+      modelMatrix = m4.multiply(modelMatrix, modelRotationMatrix);
+      modelMatrix = m4.scale(modelMatrix, letterScale[0], letterScale[1], letterScale[2]);
+    }
+
+    else if(currentTransformOrder === 'TRS') {
+      modelMatrix = m4.translate(modelMatrix, letterPosition[0], letterPosition[1], letterPosition[2]);
+      modelMatrix = m4.multiply(modelMatrix, modelRotationMatrix);
+      modelMatrix = m4.scale(modelMatrix, letterScale[0], letterScale[1], letterScale[2]);
+    }
+ 
+    // Multiply everything together. Observe the order carefully.
+    var letterMatrix = m4.multiply(projectionMatrix, viewMatrix);
+    letterMatrix = m4.multiply(letterMatrix, modelMatrix);
+
+    var axisMatrix = m4.multiply(projectionMatrix, viewMatrix);
+
+    // Tell it to use our letterShadingProgram (pair of shaders)
+    gl.useProgram(letterShadingProgram);
+
+    // Bind the attribute/buffer set we want.
+    gl.bindVertexArray(letterVAO);
+
+    // Set the matrix.
+    gl.uniformMatrix4fv(letterMatrixLocation, false, letterMatrix);
+
+    // Draw the geometry.
+    var primitiveType = gl.TRIANGLES;
+    var offset = 0;
+    var count = 16 * 6;
+    gl.drawArrays(primitiveType, offset, count);
+
+    // Tell it to use our axisShadingProgram (pair of shaders)
+    gl.useProgram(axisShadingProgram);
+
+    // Bind the attribute/buffer set we want.
+    gl.bindVertexArray(axisVAO);
+
+    // Set the matrix.
+    gl.uniformMatrix4fv(axisMatrixLocation, false, axisMatrix);
+
+    // Draw the geometry.
+    var primitiveType = gl.LINES;
+    var offset = 0;
+    var count = 6+2*21+2*21;
+    gl.drawArrays(primitiveType, offset, count);
+
+  }
+}
+
+// Fill the current ARRAY_BUFFER buffer
+// with the values that define a letter 'F'.
+function setModelGeometry(gl) {
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array([
+          // left column front
+          0,   0,  0,
+          0, 150,  0,
+          30,   0,  0,
+          0, 150,  0,
+          30, 150,  0,
+          30,   0,  0,
+
+          // top rung front
+          30,   0,  0,
+          30,  30,  0,
+          100,   0,  0,
+          30,  30,  0,
+          100,  30,  0,
+          100,   0,  0,
+
+          // middle rung front
+          30,  60,  0,
+          30,  90,  0,
+          67,  60,  0,
+          30,  90,  0,
+          67,  90,  0,
+          67,  60,  0,
+
+          // left column back
+          0,   0,  30,
+          30,   0,  30,
+          0, 150,  30,
+          0, 150,  30,
+          30,   0,  30,
+          30, 150,  30,
+
+          // top rung back
+          30,   0,  30,
+          100,   0,  30,
+          30,  30,  30,
+          30,  30,  30,
+          100,   0,  30,
+          100,  30,  30,
+
+          // middle rung back
+          30,  60,  30,
+          67,  60,  30,
+          30,  90,  30,
+          30,  90,  30,
+          67,  60,  30,
+          67,  90,  30,
+
+          // top
+          0,   0,   0,
+          100,   0,   0,
+          100,   0,  30,
+          0,   0,   0,
+          100,   0,  30,
+          0,   0,  30,
+
+          // top rung right
+          100,   0,   0,
+          100,  30,   0,
+          100,  30,  30,
+          100,   0,   0,
+          100,  30,  30,
+          100,   0,  30,
+
+          // under top rung
+          30,   30,   0,
+          30,   30,  30,
+          100,  30,  30,
+          30,   30,   0,
+          100,  30,  30,
+          100,  30,   0,
+
+          // between top rung and middle
+          30,   30,   0,
+          30,   60,  30,
+          30,   30,  30,
+          30,   30,   0,
+          30,   60,   0,
+          30,   60,  30,
+
+          // top of middle rung
+          30,   60,   0,
+          67,   60,  30,
+          30,   60,  30,
+          30,   60,   0,
+          67,   60,   0,
+          67,   60,  30,
+
+          // right of middle rung
+          67,   60,   0,
+          67,   90,  30,
+          67,   60,  30,
+          67,   60,   0,
+          67,   90,   0,
+          67,   90,  30,
+
+          // bottom of middle rung.
+          30,   90,   0,
+          30,   90,  30,
+          67,   90,  30,
+          30,   90,   0,
+          67,   90,  30,
+          67,   90,   0,
+
+          // right of bottom
+          30,   90,   0,
+          30,  150,  30,
+          30,   90,  30,
+          30,   90,   0,
+          30,  150,   0,
+          30,  150,  30,
+
+          // bottom
+          0,   150,   0,
+          0,   150,  30,
+          30,  150,  30,
+          0,   150,   0,
+          30,  150,  30,
+          30,  150,   0,
+
+          // left side
+          0,   0,   0,
+          0,   0,  30,
+          0, 150,  30,
+          0,   0,   0,
+          0, 150,  30,
+          0, 150,   0,
+          ]),
+    gl.STATIC_DRAW);
+}
+
+// Fill the current ARRAY_BUFFER buffer with colors for the 'F'.
+function setModelColors(gl) {
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Uint8Array([
+          // left column front
+          200,  70, 120,
+          200,  70, 120,
+          200,  70, 120,
+          200,  70, 120,
+          200,  70, 120,
+          200,  70, 120,
+
+          // top rung front
+          200,  70, 120,
+          200,  70, 120,
+          200,  70, 120,
+          200,  70, 120,
+          200,  70, 120,
+          200,  70, 120,
+
+          // middle rung front
+          200,  70, 120,
+          200,  70, 120,
+          200,  70, 120,
+          200,  70, 120,
+          200,  70, 120,
+          200,  70, 120,
+
+          // left column back
+          80, 70, 200,
+          80, 70, 200,
+          80, 70, 200,
+          80, 70, 200,
+          80, 70, 200,
+          80, 70, 200,
+
+          // top rung back
+          80, 70, 200,
+          80, 70, 200,
+          80, 70, 200,
+          80, 70, 200,
+          80, 70, 200,
+          80, 70, 200,
+
+          // middle rung back
+          80, 70, 200,
+          80, 70, 200,
+          80, 70, 200,
+          80, 70, 200,
+          80, 70, 200,
+          80, 70, 200,
+
+          // top
+          70, 200, 210,
+          70, 200, 210,
+          70, 200, 210,
+          70, 200, 210,
+          70, 200, 210,
+          70, 200, 210,
+
+          // top rung right
+          200, 200, 70,
+          200, 200, 70,
+          200, 200, 70,
+          200, 200, 70,
+          200, 200, 70,
+          200, 200, 70,
+
+          // under top rung
+          210, 100, 70,
+          210, 100, 70,
+          210, 100, 70,
+          210, 100, 70,
+          210, 100, 70,
+          210, 100, 70,
+
+          // between top rung and middle
+          210, 160, 70,
+          210, 160, 70,
+          210, 160, 70,
+          210, 160, 70,
+          210, 160, 70,
+          210, 160, 70,
+
+          // top of middle rung
+          70, 180, 210,
+          70, 180, 210,
+          70, 180, 210,
+          70, 180, 210,
+          70, 180, 210,
+          70, 180, 210,
+
+          // right of middle rung
+          100, 70, 210,
+          100, 70, 210,
+          100, 70, 210,
+          100, 70, 210,
+          100, 70, 210,
+          100, 70, 210,
+
+          // bottom of middle rung.
+          76, 210, 100,
+          76, 210, 100,
+          76, 210, 100,
+          76, 210, 100,
+          76, 210, 100,
+          76, 210, 100,
+
+          // right of bottom
+          140, 210, 80,
+          140, 210, 80,
+          140, 210, 80,
+          140, 210, 80,
+          140, 210, 80,
+          140, 210, 80,
+
+          // bottom
+          90, 130, 110,
+          90, 130, 110,
+          90, 130, 110,
+          90, 130, 110,
+          90, 130, 110,
+          90, 130, 110,
+
+          // left side
+          160, 160, 220,
+          160, 160, 220,
+          160, 160, 220,
+          160, 160, 220,
+          160, 160, 220,
+          160, 160, 220,
+          ]),
+    gl.STATIC_DRAW);
+}
+
+// Fill the current ARRAY_BUFFER buffer
+// with the values that define the three axes.
+function setAxisGeometry(gl) {
+  var axisPlaneLines = [];
+
+  axisPlaneLines.push (
+      0,   0,   0,
+    200,   0,   0,
+      0,   0,   0,
+      0, 200,   0,
+      0,   0,   0,
+      0,   0, 200,
+    );
+
+  // X-grid line
+  for (var i = 0; i<=200; i+=10) {
+    axisPlaneLines.push(i, 0, 0);
+    axisPlaneLines.push(i, 0, 200);
+  }
+
+  // Z-grid line
+  for (var i = 0; i<=200; i+=10) {
+    axisPlaneLines.push(0, 0, i);
+    axisPlaneLines.push(200, 0, i);
+  }
+
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array(axisPlaneLines),
+    gl.STATIC_DRAW);
+}
+
+// Fill the current ARRAY_BUFFER buffer
+// with the colors of the three axes.
+function setAxisColors(gl) {
+  var axisPlaneColors = [];
+
+  axisPlaneColors.push(
+       255,   0,   0,
+       255,   0,   0,
+         0, 255,   0,
+         0, 255,   0,
+         0,   0, 255,
+         0,   0, 255,
+    );
+
+    for (var i = 0; i<42; i++) {
+      axisPlaneColors.push(128, 128, 128);
+    }
+    for (var i = 0; i<42; i++) {
+      axisPlaneColors.push(128, 128, 128);
+    }
+
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Uint8Array(axisPlaneColors),
+    gl.STATIC_DRAW);
+}
+
+main();
+
+</script>
+<p id="group">Group: 66f5ff</p>
+</html>
+
+
