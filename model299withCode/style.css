@@ -1,0 +1,13 @@
+body {
+    margin: 0;
+    font-family: "Montserrat", sans-serif;
+    background-color: rgba(14, 57, 107, 0.843);
+  }
+  
+  #container3D canvas {
+    width: 100vw !important;
+    height: 100vh !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
