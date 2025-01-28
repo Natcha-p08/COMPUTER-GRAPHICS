@@ -1,0 +1,171 @@
+<!--
+CS299 - Assignment 01_01
+
+Group: #66f5ff
+
+First Name: Natcha 
+Last Name: Sukhamuang
+Student ID: 6509611684
+E-mail: p.parpear@gmail.com
+
+First Name: Natcha
+Last Name: Wattanabumpen
+Student ID: 6509611676
+E-mail: khing.natcha@gmail.com
+
+-->
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>CS299 - Assignment 1.1</title>
+  <link type="text/css" href="https://webgl2fundamentals.org/webgl/resources/webgl-tutorials.css" rel="stylesheet" />
+  <!-- css override -->
+  <style type="text/css">
+  body { background-color: #CCCCCC; }
+  #group {background-color: #66f5ff;}
+  canvas { background-color: #808080; width: 300px; height: 300px; border: 0px; }
+  .gman-widget-slider {min-width: 200px;}
+</style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+</body>
+
+<!-- util functions -->
+<script src="https://webgl2fundamentals.org/webgl/resources/webgl-utils.js"></script>
+
+<!-- main WebGL2 code -->
+<script>
+  "use strict";
+
+  var vs = `#version 300 es
+  
+  // an attribute is an input (in) to a vertex shader.
+  // It will receive data from a buffer
+  in vec2 a_position;
+  in vec4 a_color;
+  
+  // color output from vertex shader to fragment shader
+  out vec4 v_color;
+
+  // all shaders have a main function.
+  void main() {
+    
+    // default position output variable
+    // convert vec2 to vec4
+    gl_Position = vec4(a_position, 0, 1);
+    
+    // color passthrough
+    v_color = a_color;
+  }
+  `;
+
+  var fs = `#version 300 es
+
+  precision highp float;
+
+  // color passthrough
+  in vec4 v_color;
+  
+  // outout color 
+  out vec4 outColor;
+
+  void main() {
+    outColor = v_color;
+  }
+  `;
+
+  function main() {
+  // Get A WebGL context
+  /** @type {HTMLCanvasElement} */
+  var canvas = document.querySelector("#canvas");
+  var gl = canvas.getContext("webgl2");
+  if (!gl) {
+    return;
+  }
+
+  // setup GLSL program
+  var program = webglUtils.createProgramFromSources(gl, [vs, fs]);
+
+  // look up where the vertex data needs to go.
+  var positionLocation = gl.getAttribLocation(program, "a_position");
+  var colorLocation = gl.getAttribLocation(program, "a_color");
+  
+
+  // Create set of attributes
+  var vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+
+  // Create a buffer (formerly called "vertex buffer object", now just "buffer").
+  var vbo = gl.createBuffer();
+  
+  // Set Geometry.
+  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+
+  // [1.5 points] Modify the code to draw a square instead of a triangle. 
+  // Assign C,M,Y, and K colors to the 4 vertices of the square. 
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+   // position
+    -0.9, -0.9,
+     0.9,  -0.9, 
+     -0.9, 0.9,
+     0.9,  0.9,
+     
+   // color
+   1, 0, 1, 1,
+   1,1,0,1, 
+   0, 1, 1, 1,
+   0, 0, 0, 1,
+   ]), gl.STATIC_DRAW);
+
+   // tell the position attribute how to pull data out of the current ARRAY_BUFFER
+  gl.enableVertexAttribArray(positionLocation);
+  gl.enableVertexAttribArray(colorLocation);
+
+   var size = 2;
+  var type = gl.FLOAT;
+  var normalize = false;
+  var stride = 0;
+  var offset = 0;
+  gl.vertexAttribPointer(positionLocation, size, type, normalize, stride, offset);
+
+  var size = 4;
+  var type = gl.FLOAT;
+  var normalize = false;
+  var stride = 0;
+  var offset = Float32Array.BYTES_PER_ELEMENT * 8; // must be in bytes
+  gl.vertexAttribPointer(colorLocation, size, type, normalize, stride, offset);
+
+  // Draw the scene.
+  function drawScene() {
+    webglUtils.resizeCanvasToDisplaySize(gl.canvas);
+
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+    // Clear the canvas
+    gl.clearColor(0.15, 0.15, 0.15, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    // Tell it to use our program (pair of shaders)
+    gl.useProgram(program);
+
+    // Bind the attribute/buffer set we want.
+    gl.bindVertexArray(vao);
+
+    // Draw the geometry.
+    var offset = 0;
+    var count = 4;
+
+    // [1.5 points] Use gl.TRIANGLE_STRIP instead of gl.TRIANGLES
+    gl.drawArrays(gl.TRIANGLE_STRIP, offset, count);
+  }
+
+  drawScene();
+}
+
+main();
+</script>
+
+<p id="group">Group: 66f5ff</p>
+</html>
